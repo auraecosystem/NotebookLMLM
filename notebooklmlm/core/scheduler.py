@@ -1,4 +1,4 @@
-"""Bounded thread scheduler for asynchronous orchestration."""
+"""Thread scheduler for asynchronous orchestration."""
 from concurrent.futures import Future,ThreadPoolExecutor
 from typing import Any,Callable
 class ExecutionScheduler:
