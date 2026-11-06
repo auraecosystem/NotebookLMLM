@@ -1,23 +1,25 @@
 # NotebookLMLM
 
-NotebookLMLM is an extensible computational notebook foundation combining reusable query bookmarks with a multi-language notebook runtime.
+NotebookLMLM combines a reusable NoteBookmarks query registry with a modular computational notebook engine.
 
-## Included foundation
+## Architecture
 
-- Versioned JSON notebook documents with Markdown, code, and SQL cells.
-- Persistent NoteBookmarks registry backed by SQLite.
-- Named SQL parameters bound by the database driver, never interpolated into SQL text.
-- SQLite SQL kernel with read-only mode enabled by default.
-- Python execution through a separate subprocess with a configurable timeout.
-- Shared runtime interface and command-line entry point.
-- Tests for bookmark persistence, parameter binding, notebook serialization, and runtime behavior.
+The codebase is organized into explicit layers:
 
-## Requirements
+- notebooklmlm/core: engine, execution service, scheduler, session, and state.
+- notebooklmlm/bookmarks: registry, manager, templates, variables, linked tables, and versioning.
+- notebooklmlm/notebook: document, cells, outputs, metadata, and serialization.
+- notebooklmlm/kernels: Python and SQLite SQL implementations; JavaScript, R, Bash, and LMLM-Lang extension points.
+- notebooklmlm/intelligence: assistant proposal interfaces, query generation, code/error analysis, and workflow planning.
+- notebooklmlm/database: connection registry and SQLite adapter.
+- notebooklmlm/security: execution policy, sandbox contract, secrets, and audit logging.
+- notebooklmlm/api: transport-neutral API boundary.
 
-- Python 3.10+
-- No runtime third-party dependencies
+See docs/modular-architecture.md for component boundaries and security limitations.
 
 ## Quick start
+
+Requirements: Python 3.10+. The runtime has no mandatory third-party dependencies.
 
 ```bash
 python -m venv .venv
@@ -34,29 +36,27 @@ python -m pytest
 from notebooklmlm.bookmarks import BookmarkRegistry
 from notebooklmlm.kernels.sqlite import SQLiteKernel
 
-registry = BookmarkRegistry("notebooklmlm.db")
-bookmark = registry.get("customer-search")
-kernel = SQLiteKernel("app.db", read_only=True)
-registry.validate_parameters(bookmark, {"pattern": "%Ada%"})
-result = kernel.execute(bookmark.query, {"pattern": "%Ada%"})
-print(result.data)
-kernel.close()
-registry.close()
+with BookmarkRegistry("notebooklmlm.db") as registry:
+    bookmark = registry.get("customer-search")
+    registry.validate_parameters(bookmark, {"pattern": "%Ada%"})
+    kernel = SQLiteKernel("app.db", read_only=True)
+    try:
+        result = kernel.execute(bookmark.query, {"pattern": "%Ada%"})
+        print(result.data)
+    finally:
+        kernel.close()
 ```
 
-## Architecture
+## Execution and security
 
-- `notebooklmlm.notebook`: notebook document and cell model.
-- `notebooklmlm.bookmarks`: persistent query-template registry.
-- `notebooklmlm.kernels`: language-specific execution adapters.
-- `notebooklmlm.runtime`: shared execution facade.
+The new NotebookEngine defaults to a fail-closed policy that allows SQL only. Python must be explicitly enabled by a deployment policy. The Python kernel starts a fresh subprocess for each execution; process separation and timeouts are not a complete sandbox. Do not run untrusted code with it.
 
-The Python kernel launches a fresh interpreter for each execution. This provides process separation and timeout control, but it is **not a complete security sandbox**. Do not execute untrusted code with it. Production deployments must add OS/container isolation, resource limits, filesystem controls, network policy, authentication, and authorization.
+SandboxRunner deliberately refuses execution until a real OS/container isolation backend is configured. JavaScript, R, Bash, and LMLM-Lang are extension points only; no worker is enabled for them yet. AI-generated code and workflow plans are proposals, not automatically executed actions.
 
-The SQLite kernel is read-only by default. Enable writes explicitly only for trusted workflows. Database credentials and secrets should be supplied by a secret manager or environment, never embedded in notebooks or bookmarks.
+SQLite is read-only by default. SQL values must be passed as bound parameters, never interpolated into query strings. Secrets should be obtained from a secret provider and must not be stored in notebooks or bookmarks.
 
-## Current scope
+## Scope
 
-This is a dependency-light MVP foundation. It does not yet claim production-grade multi-user sessions, persistent Python kernel state, remote database drivers, a web UI, or LMLM model integration. Those should be added behind the documented interfaces with tests and explicit security boundaries.
+This is an extensible foundation, not a claim of production readiness. Persistent Python sessions, hardened sandboxing, resource quotas, remote database drivers, API authentication/authorization, tenant isolation, a web UI, and LMLM model integration remain future implementation gates.
 
-See [SECURITY.md](SECURITY.md) for execution and data-handling guidance.
+See SECURITY.md for the execution threat model.
